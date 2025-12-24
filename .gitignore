@@ -12,3 +12,5 @@ result-*
 # Test files
 *.test
 Dockerfile.test*
+
+/.env
