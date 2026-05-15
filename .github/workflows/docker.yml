@@ -40,13 +40,10 @@ jobs:
           fi
 
       - name: Update Docker Hub description
-        run: |
-          TOKEN=$(curl -s -X POST \
-            -H "Content-Type: application/json" \
-            -d "{\"username\":\"kamysh\",\"password\":\"${{ secrets.DOCKERHUB_TOKEN }}\"}" \
-            https://hub.docker.com/v2/users/login | jq -r .token)
-          curl -s -X PATCH \
-            -H "Authorization: Bearer $TOKEN" \
-            -H "Content-Type: application/json" \
-            -d "{\"full_description\":$(jq -Rs . < DOCKER_HUB.md)}" \
-            https://hub.docker.com/v2/repositories/kamysh/postgres-ai/
+        uses: peter-evans/dockerhub-description@v4
+        with:
+          username: kamysh
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: kamysh/postgres-ai
+          readme-filepath: ./DOCKER_HUB.md
+          short-description: "PostgreSQL 16 with pgvector and Apache AGE pre-configured. Vector + graph search out of the box."
