@@ -7,8 +7,15 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-and-push:
-    runs-on: ubuntu-latest
+  build:
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            platform: amd64
+          - runner: ubuntu-24.04-arm
+            platform: arm64
+    runs-on: ${{ matrix.runner }}
 
     steps:
       - uses: actions/checkout@v4
@@ -28,22 +35,41 @@ jobs:
           username: kamysh
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Push to Docker Hub
+      - name: Push platform image
         run: |
-          docker tag postgres-ai:latest kamysh/postgres-ai:latest
-          docker push kamysh/postgres-ai:latest
+          docker tag postgres-ai:latest kamysh/postgres-ai:latest-${{ matrix.platform }}
+          docker push kamysh/postgres-ai:latest-${{ matrix.platform }}
 
           if [[ "$GITHUB_REF" == refs/tags/* ]]; then
             TAG="${GITHUB_REF#refs/tags/}"
-            docker tag postgres-ai:latest kamysh/postgres-ai:$TAG
-            docker push kamysh/postgres-ai:$TAG
+            docker tag postgres-ai:latest kamysh/postgres-ai:$TAG-${{ matrix.platform }}
+            docker push kamysh/postgres-ai:$TAG-${{ matrix.platform }}
           fi
 
-      - name: Update Docker Hub description
-        uses: peter-evans/dockerhub-description@v4
+  manifest:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
         with:
           username: kamysh
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-          repository: kamysh/postgres-ai
-          readme-filepath: ./DOCKER_HUB.md
-          short-description: "PostgreSQL 16 with pgvector and Apache AGE pre-configured. Vector + graph search out of the box."
+
+      - name: Create and push multi-arch manifest
+        run: |
+          docker manifest create kamysh/postgres-ai:latest \
+            kamysh/postgres-ai:latest-amd64 \
+            kamysh/postgres-ai:latest-arm64
+          docker manifest push kamysh/postgres-ai:latest
+
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+            docker manifest create kamysh/postgres-ai:$TAG \
+              kamysh/postgres-ai:$TAG-amd64 \
+              kamysh/postgres-ai:$TAG-arm64
+            docker manifest push kamysh/postgres-ai:$TAG
+          fi
